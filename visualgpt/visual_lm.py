@@ -133,7 +133,10 @@ class VisualLM(BaseModel):
             input_ids (torch.Tensor): (B, L)
             vision_x (torch.Tensor): (B, N, C, H, W)
         """        
-
+        if attention_mask is None:
+            bsz, seqlen = input_ids.shape
+            attention_mask = torch.ones(bsz, seqlen, device=self.device)
+            
         if vision_x is None:
             with self.maybe_autocast():
                 outputs = self.lm(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
