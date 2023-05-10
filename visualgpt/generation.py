@@ -34,7 +34,7 @@ class Assistant:
         start_pos = min_prompt_size
         prev_pos = 0
         for cur_pos in range(start_pos, total_len):
-            outputs = self.model(tokens[:, prev_pos:cur_pos], vision_x=vision_x, vision_position=vision_position)
+            outputs = self.model(tokens[:, :cur_pos], vision_x=vision_x, vision_position=vision_position)
             logits = outputs.logits[:, -1, :]
             if temperature > 0:
                 probs = torch.softmax(logits / temperature, dim=-1)
