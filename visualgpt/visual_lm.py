@@ -134,26 +134,29 @@ class VisualLM(BaseModel):
             vision_x (torch.Tensor): (B, N, C, H, W)
         """        
 
-        inputs_embeds = self.ids_to_tokens(input_ids) # (B, L, D)
-        
-        if vision_x is not None:
-            B, N, C, H, W = vision_x.shape
+        if vision_x is None:
+            with self.maybe_autocast():
+                outputs = self.lm(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            return outputs
+        else:
+            inputs_embeds = self.ids_to_tokens(input_ids) # (B, L, D)
             
+            B, N, C, H, W = vision_x.shape
             inputs_embeds = torch.cat([inputs_embeds, torch.zeros(B, 1, inputs_embeds.shape[-1], device=self.device)], dim=1)
             
             vision_x = rearrange(vision_x, 'b n c h w -> (b n) c h w')
             vision_embeds = self.vision(vision_x)
             vision_embeds = self.vision_lang_adapter(vision_embeds)
             vision_embeds = rearrange(vision_embeds, '(b n) l d -> b (n l) d', b=B)
-            # get vision position
+            # vision position
             vision_position = vision_position[:, :N]
             pos_x = vision_position
             pos_y = repeat(torch.arange(B), 'b -> b n', n=vision_position.shape[-1])
-            # insert image embeds into inputs_embeds
+            # insert vision embeds into inputs_embeds
             inputs_embeds = inputs_embeds.index_put((pos_y, pos_x), vision_embeds)
             inputs_embeds = inputs_embeds[:, :-1]
         
-        with self.maybe_autocast():
-            outputs = self.lm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
+            with self.maybe_autocast():
+                outputs = self.lm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
 
-        return outputs
+            return outputs
