@@ -23,11 +23,6 @@ class Assistant:
         tokenized = self.tokenizer(prompts, return_tensors='pt', padding=True)
         input_ids = tokenized['input_ids']
         
-        vision_position = None
-        if vision_x is not None:
-            vision_token_id = self.tokenizer.convert_tokens_to_ids(self.vision_token)
-            vision_position = get_vision_position(input_ids, vision_token_id)
-        
         min_prompt_size = (input_ids != self.tokenizer.pad_token_id).sum(dim=1).min().item()
         max_prompt_size = (input_ids != self.tokenizer.pad_token_id).sum(dim=1).max().item()
         
@@ -40,7 +35,7 @@ class Assistant:
         start_pos = min_prompt_size
         prev_pos = 0
         for cur_pos in range(start_pos, total_len):
-            outputs = self.model(tokens[:, :cur_pos], vision_x=vision_x, vision_position=vision_position)
+            outputs = self.model(tokens[:, :cur_pos], vision_x=vision_x)
             logits = outputs.logits[:, -1, :]
             if temperature > 0:
                 probs = torch.softmax(logits / temperature, dim=-1)
