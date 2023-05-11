@@ -65,9 +65,8 @@ def preprocess(
 
 
 class VQA2:
-    def __init__(self, ann_folder, image_folder, tokenizer, ann_type='train', vision_token='<img>', vision_processor=None):
+    def __init__(self, ann_folder, image_folder, tokenizer, ann_type='train', vision_processor=None):
         self.ann_type = ann_type
-        self.vision_token = vision_token
         self.image_folder = image_folder
         self.vision_processor = vision_processor
         self.samples = []
