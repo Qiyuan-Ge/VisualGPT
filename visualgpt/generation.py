@@ -1,18 +1,19 @@
 import torch
 from typing import List
+from .helper import get_vision_position
 
 
 class Assistant:
     def __init__(self, model, tokenizer):
         self.model = model
         self.tokenizer = tokenizer
+        self.vision_token = "<img>"
     
     @torch.no_grad()
     def response(
         self,
         prompts: List[str],
         vision_x=None, 
-        vision_position=None,
         max_gen_len: int = 64,
         temperature: float = 0.8,
         top_p: float = 0.9,
@@ -21,6 +22,11 @@ class Assistant:
         
         tokenized = self.tokenizer(prompts, return_tensors='pt', padding=True)
         input_ids = tokenized['input_ids']
+        
+        vision_position = None
+        if vision_x is not None:
+            vision_token_id = self.tokenizer.convert_tokens_to_ids(self.vision_token)
+            vision_position = get_vision_position(input_ids, vision_token_id)
         
         min_prompt_size = (input_ids != self.tokenizer.pad_token_id).sum(dim=1).min().item()
         max_prompt_size = (input_ids != self.tokenizer.pad_token_id).sum(dim=1).max().item()
