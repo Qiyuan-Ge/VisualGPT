@@ -106,13 +106,15 @@ class VisionEncoder(nn.Module):
         
 
 class VisualLM(BaseModel):
-    def __init__(self, model_name="facebook/opt-125m"):
+    def __init__(self, model_name, tokenizer, vision_token='<img>'):
         super().__init__()
         self.vision = VisionEncoder()
         self.lm = AutoModelForCausalLM.from_pretrained(model_name)
         dim_v = self.vision.QFormer.vision_proj.in_features
         dim_l = self.lm.get_input_embeddings().embedding_dim
         self.vision_lang_adapter = Adapter(dim_v, dim_l, depth=1, heads=12, dim_head=64, ff_mult=4, num_latents=1)
+        self.vision_token = vision_token
+        self.vision_token_id = tokenizer.convert_tokens_to_ids(vision_token)
         
         self.freeze_vision_and_lm()
         
@@ -125,8 +127,15 @@ class VisualLM(BaseModel):
     
     def ids_to_tokens(self, ids):
         return self.lm.get_input_embeddings()(ids)
+    
+    def get_vision_position(self, input_ids):
+        mask_value = input_ids.shape[1]
+        vision_position = torch.arange(input_ids.shape[-1])
+        vision_position = repeat(vision_position, 'n -> b n', b=input_ids.shape[0])
+        vision_position = vision_position.masked_fill(input_ids!=self.vision_token_id, mask_value).sort(dim=-1).values
+        return vision_position
         
-    def forward(self, input_ids, vision_x=None, vision_position=None, attention_mask=None, labels=None):
+    def forward(self, input_ids, vision_x=None, attention_mask=None, labels=None):
         """_summary_
 
         Args:
@@ -149,6 +158,7 @@ class VisualLM(BaseModel):
             vision_embeds = self.vision_lang_adapter(vision_embeds)
             vision_embeds = rearrange(vision_embeds, '(b n) l d -> b (n l) d', b=B)
             # vision position
+            vision_position = self.get_vision_position(input_ids)
             vision_position = vision_position[:, :N]
             pos_x = vision_position
             pos_y = repeat(torch.arange(B), 'b -> b n', n=vision_position.shape[-1])
