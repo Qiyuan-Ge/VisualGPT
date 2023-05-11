@@ -103,7 +103,7 @@ class VQA2:
           
     def __getitem__(self, idx):
         img_id = self.img_ids[idx]
-        img_path = f"{self.image_folder}/COCO_{self.ann_type}2014_{img_id}.jpg"
+        img_path = f"{self.image_folder}/{self.ann_type}2014/COCO_{self.ann_type}2014_{img_id}.jpg"
         img = Image.open(img_path).convert('RGB')
         img = self.vision_processor(img)
         img = img.unsqueeze(0)
