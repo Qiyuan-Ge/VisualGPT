@@ -130,7 +130,7 @@ class VisualLM(BaseModel):
     
     def get_vision_position(self, input_ids):
         mask_value = input_ids.shape[1]
-        vision_position = torch.arange(input_ids.shape[-1])
+        vision_position = torch.arange(input_ids.shape[-1]).to(self.device)
         vision_position = repeat(vision_position, 'n -> b n', b=input_ids.shape[0])
         vision_position = vision_position.masked_fill(input_ids!=self.vision_token_id, mask_value).sort(dim=-1).values
         return vision_position
