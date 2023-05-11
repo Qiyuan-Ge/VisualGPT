@@ -1,6 +1,5 @@
 import torch
 from typing import List
-from .helper import get_vision_position
 
 
 class Assistant:
