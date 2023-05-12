@@ -10,17 +10,18 @@ from typing import Dict, Sequence
 from torch.utils.data import Dataset
 
 IGNORE_INDEX = -100
+VISION_TOKEN = '<img>'
 
 PROMPT_DICT = {
     "prompt_input": (
         "Below is an instruction that describes a task, paired with an input that provides further context. "
         "Write a response that appropriately completes the request.\n\n"
-        "### Instruction:\n<img> {instruction}\n\n### Input:\n{input}\n\n### Response:"
+        "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:"
     ),
     "prompt_no_input": (
         "Below is an instruction that describes a task. "
         "Write a response that appropriately completes the request.\n\n"
-        "### Instruction:\n<img> {instruction}\n\n### Response:"
+        "### Instruction:\n{instruction}\n\n### Response:"
     ),
 }
 
@@ -65,7 +66,7 @@ def preprocess(
 
 
 class VQA2:
-    def __init__(self, ann_folder, image_folder, tokenizer, ann_type='train', vision_processor=None):
+    def __init__(self, ann_folder, image_folder, tokenizer, ann_type='train', vision_processor=None, vision_token='<img>'):
         self.ann_type = ann_type
         self.image_folder = image_folder
         self.vision_processor = vision_processor
@@ -87,7 +88,7 @@ class VQA2:
             image_id = '0' * (12 - len(str(image_id))) + str(image_id)
             if question_id != ques['questions'][i]['question_id']:
                 raise ValueError("question_id doesn't match")
-            question = ques['questions'][i]['question']
+            question = f"{vision_token} {ques['questions'][i]['question']}"
             example = {'ques_id': question_id, 'img_id': image_id, 'instruction': question, 'output': ans}
             example['instruction'] = prompt_no_input.format_map(example)
             
@@ -115,7 +116,7 @@ class VQA2:
         
         
 class MMC4(Dataset):
-    def __init__(self, input_shards, image_folder, vision_token='<img>', vision_processor=None):
+    def __init__(self, input_shards, image_folder, vision_processor=None, vision_token='<img>'):
         super().__init__()
         self.vision_token = vision_token
         self.image_folder = image_folder
