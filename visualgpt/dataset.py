@@ -74,7 +74,49 @@ def preprocess(
     return dict(input_ids=input_ids, labels=labels)
 
 
-# class COCOImageCaption(Dataset):
+class COCOImageCaption(Dataset):
+    def __init__(self, root, tokenizer, dataType='train2017', vision_processor=None):
+        self.root = root
+        self.img_dir = '{}/{}'.format(root, dataType)
+        self.vision_processor = vision_processor
+        
+        prompt_no_input = PROMPT_DICT["prompt_no_input"]
+        
+        sources = []
+        targets = []
+        
+        annFile = '{}/annotations/captions_{}.json'.format(root, dataType)
+        self.coco = COCO(annFile)
+        self.img_ids = self.coco.getImgIds()
+        for i in range(len(self.img_ids)):
+            imgid = self.img_ids[i]
+            annid = self.coco.getAnnIds(imgIds=imgid)
+            ann = np.random.choice(self.coco.loadAnns(annid))['caption']
+            
+            instruction = np.random.choice(CAPTION_TEMPLATE)
+            example = {'instruction': instruction, 'output': ann}
+            example['instruction'] = prompt_no_input.format_map(example)
+            
+            sources.append(example['instruction'])
+            targets.append(f"{example['output']}{tokenizer.eos_token}")
+        
+        logging.warning("Tokenizing inputs... This may take some time...")
+        data_dict = preprocess(sources, targets, tokenizer)
+        
+        self.input_ids = data_dict["input_ids"]
+        self.labels = data_dict["labels"]
+            
+    def __getitem__(self, idx):
+        imgid = self.img_ids[idx]
+        img_name = self.coco.loadImgs(imgid)[0]['file_name']
+        img = Image.open(os.path.join(self.img_dir, img_name)).convert('RGB')
+        img = self.vision_processor(img)
+        img = img.unsqueeze(0)
+        
+        return dict(input_ids=self.input_ids[idx], labels=self.labels[idx], vision_x=img)
+        
+    def __len__(self):
+        return len(self.img_ids)
 
 
 class VQA2(Dataset):
