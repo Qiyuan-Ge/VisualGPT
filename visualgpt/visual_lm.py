@@ -106,9 +106,13 @@ class VisionEncoder(nn.Module):
         
 
 class VisualLM(BaseModel):
-    def __init__(self, model_name, tokenizer, vision_token='<img>'):
+    def __init__(self, model_name, tokenizer, vision_token='<img>', cache_dir=None):
         super().__init__()
         self.vision = VisionEncoder()
+        if 'mpt' in model_name:
+            self.lm = AutoModelForCausalLM.from_pretrained(model_name, cache_dir=cache_dir, trust_remote_code=True)
+        else:
+            self.lm = AutoModelForCausalLM.from_pretrained(model_name, cache_dir=cache_dir)
         self.lm = AutoModelForCausalLM.from_pretrained(model_name)
         dim_v = self.vision.QFormer.vision_proj.in_features
         dim_l = self.lm.get_input_embeddings().embedding_dim
