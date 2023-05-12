@@ -25,6 +25,15 @@ PROMPT_DICT = {
     ),
 }
 
+CAPTION_TEMPLATE = [
+    "Describe this picture",
+    "Can you provide a description of the picture?",
+    "Can you provide a description of the scene captured in this picture?"
+    "What can you tell me about the visual elements captured in this image?"
+    "Please offer a thorough depiction of the scene depicted in this picture"
+    "Could you narrate the contents of this picture?"
+]
+
 
 def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedTokenizer) -> Dict:
     """Tokenize a list of strings."""
@@ -65,8 +74,12 @@ def preprocess(
     return dict(input_ids=input_ids, labels=labels)
 
 
-class VQA2:
+# class COCOImageCaption(Dataset):
+
+
+class VQA2(Dataset):
     def __init__(self, ann_folder, image_folder, tokenizer, ann_type='train', vision_processor=None, vision_token='<img>'):
+        super().__init__()
         self.ann_type = ann_type
         self.image_folder = image_folder
         self.vision_processor = vision_processor
