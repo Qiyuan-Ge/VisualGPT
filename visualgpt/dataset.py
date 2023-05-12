@@ -27,11 +27,16 @@ PROMPT_DICT = {
 
 CAPTION_TEMPLATE = [
     "Describe this picture",
+    "Explain what you see in this image.",
+    "Provide a detailed description of the picture.",
+    "Can you describe the visual elements captured in this photograph?",
+    "Please narrate the scene depicted in this image.",
+    "Offer a verbal portrayal of what is happening in this picture.",
     "Can you provide a description of the picture?",
-    "Can you provide a description of the scene captured in this picture?"
-    "What can you tell me about the visual elements captured in this image?"
-    "Please offer a thorough depiction of the scene depicted in this picture"
-    "Could you narrate the contents of this picture?"
+    "Can you provide a description of the scene captured in this picture?",
+    "What can you tell me about the visual elements captured in this image?",
+    "Please offer a thorough depiction of the scene depicted in this picture",
+    "Could you narrate the contents of this picture?",
 ]
 
 
