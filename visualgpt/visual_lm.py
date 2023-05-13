@@ -57,7 +57,7 @@ class Attention(nn.Module):
 
 
 class Adapter(nn.Module):
-    def __init__(self, in_dim, dim, heads, dim_head, ff_mult=4, num_latents=1):
+    def __init__(self, in_dim, dim, ff_mult=4, num_latents=1):
         super().__init__()
         self.latents = nn.Parameter(torch.randn(num_latents, dim))
         self.atten = Attention(dim=dim, dkv=in_dim)
@@ -101,7 +101,7 @@ class VisualLM(BaseModel):
         self.lm = AutoModelForCausalLM.from_pretrained(model_name)
         dim_v = self.vision.QFormer.vision_proj.in_features
         dim_l = self.lm.get_input_embeddings().embedding_dim
-        self.vision_lang_adapter = Adapter(dim_v, dim_l, depth=1, heads=12, dim_head=64, ff_mult=4, num_latents=1)
+        self.vision_lang_adapter = Adapter(dim_v, dim_l, ff_mult=4, num_latents=1)
         self.vision_token = vision_token
         self.vision_token_id = tokenizer.convert_tokens_to_ids(vision_token)
         
