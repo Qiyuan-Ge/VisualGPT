@@ -29,7 +29,7 @@ class Attention(nn.Module):
         super().__init__()
         self.scale = dim ** -0.5
         
-        self.norm = nn.LayerNorm(dim)
+        self.norm = nn.LayerNorm(dkv)
         self.norm_latents = nn.LayerNorm(dim)
 
         self.to_q = nn.Linear(dim, dim, bias=False)
