@@ -1,8 +1,10 @@
+import os
 import copy
 import json
 import torch
 import logging
 import zipfile
+import numpy as np
 import braceexpand
 import transformers
 from PIL import Image
