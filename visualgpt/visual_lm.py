@@ -5,6 +5,7 @@ from lavis.models import load_model_and_preprocess
 from transformers import AutoModelForCausalLM
 from .base_model import BaseModel
 
+
 class FeedForward(nn.Module):
     def __init__(self, dim, ff_mult=4):
         super().__init__()
@@ -24,24 +25,20 @@ class FeedForward(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=64):
+    def __init__(self, dim, dkv):
         super().__init__()
-        inner_dim = dim_head * heads
-
-        self.scale = dim_head ** -0.5
-        self.heads = heads
+        self.scale = dim ** -0.5
         
         self.norm = nn.LayerNorm(dim)
         self.norm_latents = nn.LayerNorm(dim)
 
-        self.to_q = nn.Linear(dim, inner_dim, bias=False)
-        self.to_k = nn.Linear(dim, inner_dim, bias=False)
-        self.to_v = nn.Linear(dim, inner_dim, bias=False)
-
-        self.to_out = nn.Linear(inner_dim, dim)
+        self.to_q = nn.Linear(dim, dim, bias=False)
+        self.to_k = nn.Linear(dkv, dim, bias=False)
+        self.to_v = nn.Linear(dkv, dim, bias=False)
+        
+        self.to_o = nn.Linear(dim, dim)
 
     def forward(self, x, latents):
-        h = self.heads
         
         x = self.norm(x)
         latents = self.norm_latents(latents)
@@ -50,39 +47,27 @@ class Attention(nn.Module):
         k = self.to_k(x)
         v = self.to_v(x)
 
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
         q = q * self.scale
         
         sim = q @ k.transpose(-2, -1)
         sim = sim.softmax(dim=-1)
-
         out = sim @ v
-        out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
-        return self.to_out(out)  
+        
+        return self.to_o(out)  
 
 
 class Adapter(nn.Module):
-    def __init__(self, dim, out_dim, depth, heads, dim_head, ff_mult=4, num_latents=1):
+    def __init__(self, in_dim, dim, heads, dim_head, ff_mult=4, num_latents=1):
         super().__init__()
         self.latents = nn.Parameter(torch.randn(num_latents, dim))
-        self.layers = nn.ModuleList([])
-        for _ in range(depth):
-            self.layers.append(nn.ModuleList([
-                Attention(dim=dim, heads=heads, dim_head=dim_head),
-                FeedForward(dim=dim, ff_mult=ff_mult),
-            ]))
-        self.norm = nn.LayerNorm(dim)
-        self.proj = nn.Linear(dim, out_dim)
-    
+        self.atten = Attention(dim=dim, dkv=in_dim)
+        self.ffnet = FeedForward(dim=dim, ff_mult=ff_mult)
+        
     def forward(self, x):
         latents = repeat(self.latents, 'n d -> b n d', b=x.shape[0])
         
-        for attn, ff in self.layers:
-            latents = attn(x, latents) + latents
-            latents = ff(latents) + latents
-        
-        latents = self.norm(latents)
-        latents = self.proj(latents)
+        latents = self.atten(x, latents) + latents
+        latents = self.ffnet(latents) + latents
         
         return latents
 
