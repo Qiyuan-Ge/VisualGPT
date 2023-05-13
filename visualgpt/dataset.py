@@ -7,6 +7,7 @@ import braceexpand
 import transformers
 from PIL import Image
 from typing import Dict, Sequence
+from pycocotools.coco import COCO
 from torch.utils.data import Dataset
 
 IGNORE_INDEX = -100
@@ -80,7 +81,7 @@ def preprocess(
 
 
 class COCOImageCaption(Dataset):
-    def __init__(self, root, tokenizer, dataType='train2017', vision_processor=None):
+    def __init__(self, root, tokenizer, dataType='train2017', vision_processor=None, vision_token='<img>'):
         self.root = root
         self.img_dir = '{}/{}'.format(root, dataType)
         self.vision_processor = vision_processor
@@ -98,7 +99,7 @@ class COCOImageCaption(Dataset):
             annid = self.coco.getAnnIds(imgIds=imgid)
             ann = np.random.choice(self.coco.loadAnns(annid))['caption']
             
-            instruction = np.random.choice(CAPTION_TEMPLATE)
+            instruction = f"{vision_token} {np.random.choice(CAPTION_TEMPLATE)}"
             example = {'instruction': instruction, 'output': ann}
             example['instruction'] = prompt_no_input.format_map(example)
             
@@ -146,8 +147,7 @@ class VQA2(Dataset):
             question_id = anno['annotations'][i]['question_id']
             image_id = anno['annotations'][i]['image_id']
             image_id = '0' * (12 - len(str(image_id))) + str(image_id)
-            if question_id != ques['questions'][i]['question_id']:
-                raise ValueError("question_id doesn't match")
+
             question = f"{vision_token} {ques['questions'][i]['question']}"
             example = {'ques_id': question_id, 'img_id': image_id, 'instruction': question, 'output': ans}
             example['instruction'] = prompt_no_input.format_map(example)
