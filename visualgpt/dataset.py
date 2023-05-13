@@ -83,9 +83,9 @@ def preprocess(
 
 
 class COCOImageCaption(Dataset):
-    def __init__(self, root, tokenizer, dataType='train2017', vision_processor=None, vision_token='<img>'):
+    def __init__(self, root, tokenizer, dataType='train', vision_processor=None, vision_token='<img>'):
         self.root = root
-        self.img_dir = '{}/{}'.format(root, dataType)
+        self.img_dir = '{}/{}2017'.format(root, dataType)
         self.vision_processor = vision_processor
         
         prompt_no_input = PROMPT_DICT["prompt_no_input"]
@@ -93,7 +93,7 @@ class COCOImageCaption(Dataset):
         sources = []
         targets = []
         
-        annFile = '{}/annotations/captions_{}.json'.format(root, dataType)
+        annFile = '{}/annotations/captions_{}2017.json'.format(root, dataType)
         self.coco = COCO(annFile)
         self.img_ids = self.coco.getImgIds()
         for i in range(len(self.img_ids)):
@@ -128,15 +128,15 @@ class COCOImageCaption(Dataset):
 
 
 class VQA2(Dataset):
-    def __init__(self, ann_folder, image_folder, tokenizer, ann_type='train', vision_processor=None, vision_token='<img>'):
+    def __init__(self, ann_folder, image_folder, tokenizer, dataType='train', vision_processor=None, vision_token='<img>'):
         super().__init__()
-        self.ann_type = ann_type
+        self.dataType = dataType
         self.image_folder = image_folder
         self.vision_processor = vision_processor
         self.samples = []
         
-        anno = json.load(open(f'{ann_folder}/v2_mscoco_{ann_type}2014_annotations.json', 'r'))
-        ques = json.load(open(f'{ann_folder}/v2_OpenEnded_mscoco_{ann_type}2014_questions.json', 'r'))
+        anno = json.load(open(f'{ann_folder}/v2_mscoco_{dataType}2014_annotations.json', 'r'))
+        ques = json.load(open(f'{ann_folder}/v2_OpenEnded_mscoco_{dataType}2014_questions.json', 'r'))
         
         prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
         
@@ -166,7 +166,7 @@ class VQA2(Dataset):
           
     def __getitem__(self, idx):
         img_id = self.img_ids[idx]
-        img_path = f"{self.image_folder}/{self.ann_type}2014/COCO_{self.ann_type}2014_{img_id}.jpg"
+        img_path = f"{self.image_folder}/{self.dataType}2014/COCO_{self.dataType}2014_{img_id}.jpg"
         img = Image.open(img_path).convert('RGB')
         img = self.vision_processor(img)
         img = img.unsqueeze(0)
