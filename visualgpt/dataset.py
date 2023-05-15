@@ -11,22 +11,35 @@ from PIL import Image
 from typing import Dict, Sequence
 from pycocotools.coco import COCO
 from torch.utils.data import Dataset
+from .utils import jload, jlload
 
 IGNORE_INDEX = -100
 VISION_TOKEN = '<img>'
+VISION_TOKENS = ((VISION_TOKEN + " ") * 32).strip()
 
-PROMPT_DICT = {
+
+DEFAULT_PROMPT_DICT = {
+    "prompt_input": "### USER:\n{user}\n\n### INPUT:\n{input}\n\n### ASSISTANT:",
+    "prompt_no_input": "### USER:\n{user}\n\n### ASSISTANT:",
+}
+
+
+ALPACA_PROMPT_DICT = {
     "prompt_input": (
         "Below is an instruction that describes a task, paired with an input that provides further context. "
         "Write a response that appropriately completes the request.\n\n"
-        "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:"
+        "### Instruction:\n{user}\n\n### Input:\n{input}\n\n### Response:"
     ),
     "prompt_no_input": (
         "Below is an instruction that describes a task. "
         "Write a response that appropriately completes the request.\n\n"
-        "### Instruction:\n{instruction}\n\n### Response:"
+        "### Instruction:\n{user}\n\n### Response:"
     ),
 }
+
+
+PROMPT_TEMPLATE = DEFAULT_PROMPT_DICT
+
 
 CAPTION_TEMPLATE = [
     "Describe this picture",
@@ -82,13 +95,79 @@ def preprocess(
     return dict(input_ids=input_ids, labels=labels)
 
 
+class AlpacaDataset(Dataset):
+    """Dataset for supervised fine-tuning."""
+
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer):
+        super().__init__()
+        logging.warning("Loading data...")
+        list_data_dict = jload(data_path)
+
+        logging.warning("Formatting inputs...")
+        
+        PROMPT_INPUT, PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_input"], PROMPT_TEMPLATE["prompt_no_input"]
+        
+        sources = [
+            PROMPT_INPUT.format(user=example['instruction'], input=example['input']) if example.get("input", "") != "" else PROMPT_NO_INPUT.format(user=example['instruction'])
+            for example in list_data_dict
+        ]
+        targets = [f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict]
+
+        logging.warning("Tokenizing inputs... This may take some time...")
+        data_dict = preprocess(sources, targets, tokenizer)
+
+        self.input_ids = data_dict["input_ids"]
+        self.labels = data_dict["labels"]
+
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        return dict(input_ids=self.input_ids[i], labels=self.labels[i])
+    
+
+class DollyDataset(Dataset):
+    """Dataset for supervised fine-tuning."""
+
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer):
+        super().__init__()
+        logging.warning("Loading data...")
+        list_data_dict = jlload(data_path)
+
+        logging.warning("Formatting inputs...")
+        
+        PROMPT_DICT = {
+            "prompt_input": "### USER:\n{instruction}\n\n### INPUT:\n{context}\n\n### ASSISTANT:",
+            "prompt_no_input": "### USER:\n{instruction}\n\n### ASSISTANT:",
+        }
+        
+        prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
+        sources = [
+            prompt_input.format_map(example) if example.get("context", "") != "" else prompt_no_input.format_map(example)
+            for example in list_data_dict
+        ]
+        targets = [f"{example['response']}{tokenizer.eos_token}" for example in list_data_dict]
+
+        logging.warning("Tokenizing inputs... This may take some time...")
+        data_dict = preprocess(sources, targets, tokenizer)
+
+        self.input_ids = data_dict["input_ids"]
+        self.labels = data_dict["labels"]
+
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        return dict(input_ids=self.input_ids[i], labels=self.labels[i])
+
+
 class COCOImageCaption(Dataset):
-    def __init__(self, root, tokenizer, dataType='train', vision_processor=None, vision_token='<img>'):
+    def __init__(self, root, tokenizer, dataType='train', vision_processor=None):
         self.root = root
         self.img_dir = '{}/{}2017'.format(root, dataType)
         self.vision_processor = vision_processor
         
-        prompt_no_input = PROMPT_DICT["prompt_no_input"]
+        PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
         
         sources = []
         targets = []
@@ -99,14 +178,14 @@ class COCOImageCaption(Dataset):
         for i in range(len(self.img_ids)):
             imgid = self.img_ids[i]
             annid = self.coco.getAnnIds(imgIds=imgid)
-            ann = np.random.choice(self.coco.loadAnns(annid))['caption']
+            assistant = np.random.choice(self.coco.loadAnns(annid))['caption']
             
-            instruction = f"{vision_token} {np.random.choice(CAPTION_TEMPLATE)}"
-            example = {'instruction': instruction, 'output': ann}
-            example['instruction'] = prompt_no_input.format_map(example)
+            user = f"{VISION_TOKENS}\n{np.random.choice(CAPTION_TEMPLATE)}"
+            example = {'user': user, 'assistant': assistant}
+            example['user'] = PROMPT_NO_INPUT.format(user=example['user'])
             
-            sources.append(example['instruction'])
-            targets.append(f"{example['output']}{tokenizer.eos_token}")
+            sources.append(example['user'])
+            targets.append(f"{example['assistant']}{tokenizer.eos_token}")
         
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
@@ -128,7 +207,7 @@ class COCOImageCaption(Dataset):
 
 
 class VQA2(Dataset):
-    def __init__(self, ann_folder, image_folder, tokenizer, dataType='train', vision_processor=None, vision_token='<img>'):
+    def __init__(self, ann_folder, image_folder, tokenizer, dataType='train', vision_processor=None):
         super().__init__()
         self.dataType = dataType
         self.image_folder = image_folder
@@ -138,24 +217,24 @@ class VQA2(Dataset):
         anno = json.load(open(f'{ann_folder}/v2_mscoco_{dataType}2014_annotations.json', 'r'))
         ques = json.load(open(f'{ann_folder}/v2_OpenEnded_mscoco_{dataType}2014_questions.json', 'r'))
         
-        prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
+        PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
         
         sources = []
         targets = []
         self.img_ids = []
         
         for i in range(len(anno['annotations'])):
-            ans = anno['annotations'][i]['multiple_choice_answer']
+            assistant = anno['annotations'][i]['multiple_choice_answer']
             question_id = anno['annotations'][i]['question_id']
             image_id = anno['annotations'][i]['image_id']
             image_id = '0' * (12 - len(str(image_id))) + str(image_id)
 
-            question = f"{vision_token} {ques['questions'][i]['question']}"
-            example = {'ques_id': question_id, 'img_id': image_id, 'instruction': question, 'output': ans}
-            example['instruction'] = prompt_no_input.format_map(example)
+            user = f"{VISION_TOKENS}\n{ques['questions'][i]['question']}"
+            example = {'ques_id': question_id, 'img_id': image_id, 'user': user, 'assistant': assistant}
+            example['user'] = PROMPT_NO_INPUT.format(user=example['user'])
             
-            sources.append(example['instruction'])
-            targets.append(f"{example['output']}{tokenizer.eos_token}")
+            sources.append(example['user'])
+            targets.append(f"{example['assistant']}{tokenizer.eos_token}")
             self.img_ids.append(example['img_id'])
             
         logging.warning("Tokenizing inputs... This may take some time...")
@@ -178,9 +257,8 @@ class VQA2(Dataset):
         
         
 class MMC4(Dataset):
-    def __init__(self, input_shards, image_folder, vision_processor=None, vision_token='<img>'):
+    def __init__(self, input_shards, image_folder, vision_processor=None):
         super().__init__()
-        self.vision_token = vision_token
         self.image_folder = image_folder
         self.vision_processor = vision_processor
         self.samples = []
@@ -207,7 +285,7 @@ class MMC4(Dataset):
                 img = Image.open(img_path).convert('RGB')
                 img = self.vision_processor(img)
                 vision_x.append(img.unsqueeze(0))
-                lang_x[text_index] = self.vision_token + ' ' + lang_x[text_index]
+                lang_x[text_index] = VISION_TOKENS + ' ' + lang_x[text_index]
             except:
                 pass
         
