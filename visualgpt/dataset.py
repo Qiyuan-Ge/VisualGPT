@@ -19,8 +19,8 @@ VISION_TOKENS = ((VISION_TOKEN + " ") * 32).strip()
 
 
 DEFAULT_PROMPT_DICT = {
-    "prompt_input": "### USER:\n{user}\n\n### INPUT:\n{input}\n\n### ASSISTANT:",
-    "prompt_no_input": "### USER:\n{user}\n\n### ASSISTANT:",
+    "prompt_input": "<USER>:{user}\n<INPUT>:{input}\n<ASSISTANT>:",
+    "prompt_no_input": "<USER>:{user}\n<ASSISTANT>:",
 }
 
 
@@ -136,14 +136,10 @@ class DollyDataset(Dataset):
 
         logging.warning("Formatting inputs...")
         
-        PROMPT_DICT = {
-            "prompt_input": "### USER:\n{instruction}\n\n### INPUT:\n{context}\n\n### ASSISTANT:",
-            "prompt_no_input": "### USER:\n{instruction}\n\n### ASSISTANT:",
-        }
+        PROMPT_INPUT, PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_input"], PROMPT_TEMPLATE["prompt_no_input"]
         
-        prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
         sources = [
-            prompt_input.format_map(example) if example.get("context", "") != "" else prompt_no_input.format_map(example)
+            PROMPT_INPUT.format(user=example['instruction'], input=example['context']) if example.get("context", "") != "" else PROMPT_NO_INPUT.format(user=example['instruction'])
             for example in list_data_dict
         ]
         targets = [f"{example['response']}{tokenizer.eos_token}" for example in list_data_dict]
