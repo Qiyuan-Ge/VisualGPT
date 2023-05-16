@@ -5,6 +5,7 @@ import torch
 import logging
 import zipfile
 import numpy as np
+import pandas as pd
 import braceexpand
 import transformers
 from PIL import Image
@@ -143,6 +144,68 @@ class DollyDataset(Dataset):
             for example in list_data_dict
         ]
         targets = [f"{example['response']}{tokenizer.eos_token}" for example in list_data_dict]
+
+        logging.warning("Tokenizing inputs... This may take some time...")
+        data_dict = preprocess(sources, targets, tokenizer)
+
+        self.input_ids = data_dict["input_ids"]
+        self.labels = data_dict["labels"]
+
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        return dict(input_ids=self.input_ids[i], labels=self.labels[i])
+
+
+class GradeSchoolMathDataset(Dataset):
+    """Dataset for supervised fine-tuning."""
+
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer):
+        super().__init__()
+        logging.warning("Loading data...")
+        df = pd.read_parquet(data_path)
+        list_data_dict = df.to_dict('records')
+
+        logging.warning("Formatting inputs...")
+        
+        PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
+        
+        sources = [
+            PROMPT_NO_INPUT.format(user=example['INSTRUCTION']) for example in list_data_dict
+        ]
+        targets = [f"{example['RESPONSE']}{tokenizer.eos_token}" for example in list_data_dict]
+
+        logging.warning("Tokenizing inputs... This may take some time...")
+        data_dict = preprocess(sources, targets, tokenizer)
+
+        self.input_ids = data_dict["input_ids"]
+        self.labels = data_dict["labels"]
+
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        return dict(input_ids=self.input_ids[i], labels=self.labels[i])
+    
+    
+class CompetitionMathDataset(Dataset):
+    """Dataset for supervised fine-tuning."""
+
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer):
+        super().__init__()
+        logging.warning("Loading data...")
+        df = pd.read_parquet(data_path)
+        list_data_dict = df.to_dict('records')
+
+        logging.warning("Formatting inputs...")
+        
+        PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
+        
+        sources = [
+            PROMPT_NO_INPUT.format(user=example['instruction']) for example in list_data_dict
+        ]
+        targets = [f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict]
 
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
