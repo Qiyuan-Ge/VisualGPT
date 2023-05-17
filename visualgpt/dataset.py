@@ -96,6 +96,59 @@ def preprocess(
     return dict(input_ids=input_ids, labels=labels)
 
 
+class ShareGPTDataset(Dataset):
+    """Dataset for supervised fine-tuning."""
+
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer):
+        super().__init__()
+        logging.warning("Loading data...")
+        list_data_dict = jload(data_path)
+        list_data_dict = list_data_dict[:100]
+
+        logging.warning("Tokenizing inputs... This may take some time...")
+        
+        PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
+        
+        self.input_ids = []
+        self.labels = []
+        
+        for i in range(len(list_data_dict)):
+            conversations = list_data_dict[i]['conversations']
+            if len(conversations) < 2:
+                print("skip one conversation")
+                continue
+            sources = []
+            targets = []
+            for example in conversations:
+                if example['from'] == 'human':
+                    sources.append(PROMPT_NO_INPUT.format(user=example['value']))
+                elif example['from'] == 'gpt':
+                    targets.append(f"{example['value']}{tokenizer.eos_token}")
+                else:
+                    print(f"Invalid example type {example['from']}")
+                    sources = []
+                    targets = []
+                    break
+
+            if len(sources) == 0 or len(targets) == 0:
+                pass
+            else:
+                data_dict = preprocess(sources, targets, tokenizer)
+                input_ids_cat = torch.cat(data_dict["input_ids"], dim=0)
+                labels_cat = torch.cat(data_dict["labels"], dim=0)
+                if torch.unique(labels_cat).shape[0] == 1 or input_ids_cat.shape[0] > 2000:
+                    pass
+                else:
+                    self.input_ids.append(input_ids_cat)
+                    self.labels.append(labels_cat)
+        
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        return dict(input_ids=self.input_ids[i], labels=self.labels[i])
+
+
 class AlpacaDataset(Dataset):
     """Dataset for supervised fine-tuning."""
 
@@ -113,7 +166,8 @@ class AlpacaDataset(Dataset):
             for example in list_data_dict
         ]
         targets = [f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict]
-
+        self.sources = sources
+        self.targets = targets
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
 
