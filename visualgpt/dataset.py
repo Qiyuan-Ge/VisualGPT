@@ -147,7 +147,7 @@ class ShareGPTDataset(Dataset):
                 data_dict = preprocess(sources, targets, tokenizer)
                 input_ids_cat = torch.cat(data_dict["input_ids"], dim=0)
                 labels_cat = torch.cat(data_dict["labels"], dim=0)
-                if torch.unique(labels_cat).shape[0] == 1 or input_ids_cat.shape[0] > 2000:
+                if torch.unique(labels_cat).shape[0] == 1 or input_ids_cat.shape[0] > tokenizer.model_max_length:
                     pass
                 else:
                     self.input_ids.append(input_ids_cat)
