@@ -103,7 +103,6 @@ class ShareGPTDataset(Dataset):
         super().__init__()
         logging.warning("Loading data...")
         list_data_dict = jload(data_path)
-        list_data_dict = list_data_dict[:100]
 
         logging.warning("Tokenizing inputs... This may take some time...")
         
@@ -115,22 +114,34 @@ class ShareGPTDataset(Dataset):
         for i in range(len(list_data_dict)):
             conversations = list_data_dict[i]['conversations']
             if len(conversations) < 2:
-                print("skip one conversation")
                 continue
             sources = []
             targets = []
+            next_speak = 'human'
             for example in conversations:
                 if example['from'] == 'human':
-                    sources.append(PROMPT_NO_INPUT.format(user=example['value']))
+                    if next_speak == 'human':
+                        sources.append(PROMPT_NO_INPUT.format(user=example['value']))
+                        next_speak = 'gpt'
+                    else:
+                        sources = []
+                        targets = []
+                        break
                 elif example['from'] == 'gpt':
-                    targets.append(f"{example['value']}{tokenizer.eos_token}")
+                    if next_speak == 'gpt':
+                        targets.append(f"{example['value']}{tokenizer.eos_token}")
+                        next_speak = 'human'
+                    else:
+                        sources = []
+                        targets = []
+                        break
                 else:
                     print(f"Invalid example type {example['from']}")
                     sources = []
                     targets = []
                     break
 
-            if len(sources) == 0 or len(targets) == 0:
+            if len(sources) == 0 or len(targets) == 0 or len(sources) != len(targets):
                 pass
             else:
                 data_dict = preprocess(sources, targets, tokenizer)
