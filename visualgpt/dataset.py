@@ -285,6 +285,82 @@ class CompetitionMathDataset(Dataset):
         return dict(input_ids=self.input_ids[i], labels=self.labels[i])
 
 
+class LLaVAInstruct150K(Dataset):
+    def __init__(self, data_path: str, image_folder:str, tokenizer: transformers.PreTrainedTokenizer, dataType='train', vision_processor=None):
+        super().__init__()
+        self.dataType = dataType
+        self.image_folder = image_folder
+        self.vision_processor = vision_processor
+        
+        logging.warning("Loading data...")
+        list_data_dict = jload(data_path)
+        
+        logging.warning("Tokenizing inputs... This may take some time...")
+        
+        PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
+        
+        self.input_ids = []
+        self.labels = []
+        self.img_ids = []
+        
+        for i in range(len(list_data_dict)):
+            img_id = list_data_dict[i]['id']
+            conversations = list_data_dict[i]['conversations']
+            if len(conversations) < 2:
+                continue
+            sources = []
+            targets = []
+            next_speak = 'human'
+            for example in conversations:
+                if example['from'] == 'human':
+                    if next_speak == 'human':
+                        example['value'] = example['value'].replace("<image>", VISION_TOKENS)
+                        sources.append(PROMPT_NO_INPUT.format(user=example['value']))
+                        next_speak = 'gpt'
+                    else:
+                        sources = []
+                        targets = []
+                        break
+                elif example['from'] == 'gpt':
+                    if next_speak == 'gpt':
+                        targets.append(f"{example['value']}{tokenizer.eos_token}")
+                        next_speak = 'human'
+                    else:
+                        sources = []
+                        targets = []
+                        break
+                else:
+                    print(f"Invalid example type {example['from']}")
+                    sources = []
+                    targets = []
+                    break
+            
+            if len(sources) == 0 or len(targets) == 0 or len(sources) != len(targets):
+                pass
+            else:
+                data_dict = preprocess(sources, targets, tokenizer)
+                input_ids_cat = torch.cat(data_dict["input_ids"], dim=0)
+                labels_cat = torch.cat(data_dict["labels"], dim=0)
+                if torch.unique(labels_cat).shape[0] == 1 or input_ids_cat.shape[0] > tokenizer.model_max_length:
+                    pass
+                else:
+                    self.input_ids.append(input_ids_cat)
+                    self.labels.append(labels_cat)
+                    self.img_ids.append(img_id)
+    
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, idx):
+        img_id = self.img_ids[idx]
+        img_path = f"{self.image_folder}/{self.dataType}2014/COCO_{self.dataType}2014_{img_id}.jpg"
+        img = Image.open(img_path).convert('RGB')
+        img = self.vision_processor(img)
+        img = img.unsqueeze(0)
+        
+        return dict(input_ids=self.input_ids[idx], labels=self.labels[idx], vision_x=img) 
+    
+
 class COCOImageCaption(Dataset):
     def __init__(self, root, tokenizer, dataType='train', vision_processor=None):
         self.root = root
