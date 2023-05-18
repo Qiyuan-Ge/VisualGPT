@@ -16,7 +16,7 @@ from .utils import jload, jlload
 
 IGNORE_INDEX = -100
 VISION_TOKEN = '<img>'
-VISION_TOKENS = '\n' + VISION_TOKEN*32 + '\n'
+VISION_TOKENS = VISION_TOKEN*32 + '\n'
 
 
 DEFAULT_PROMPT_DICT = {
