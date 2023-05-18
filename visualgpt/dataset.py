@@ -16,7 +16,7 @@ from .utils import jload, jlload
 
 IGNORE_INDEX = -100
 VISION_TOKEN = '<img>'
-VISION_TOKENS = ((VISION_TOKEN + " ") * 32).strip()
+VISION_TOKENS = '\n' + VISION_TOKEN*32 + '\n'
 
 
 DEFAULT_PROMPT_DICT = {
@@ -378,7 +378,7 @@ class COCOImageCaption(Dataset):
             annid = self.coco.getAnnIds(imgIds=imgid)
             assistant = np.random.choice(self.coco.loadAnns(annid))['caption']
             
-            user = f"{VISION_TOKENS}\n{np.random.choice(CAPTION_TEMPLATE)}"
+            user = f"{VISION_TOKENS}{np.random.choice(CAPTION_TEMPLATE)}"
             example = {'user': user, 'assistant': assistant}
             example['user'] = PROMPT_NO_INPUT.format(user=example['user'])
             
@@ -427,7 +427,7 @@ class VQA2(Dataset):
             image_id = anno['annotations'][i]['image_id']
             image_id = '0' * (12 - len(str(image_id))) + str(image_id)
 
-            user = f"{VISION_TOKENS}\n{ques['questions'][i]['question']}"
+            user = f"{VISION_TOKENS}{ques['questions'][i]['question']}"
             example = {'ques_id': question_id, 'img_id': image_id, 'user': user, 'assistant': assistant}
             example['user'] = PROMPT_NO_INPUT.format(user=example['user'])
             
