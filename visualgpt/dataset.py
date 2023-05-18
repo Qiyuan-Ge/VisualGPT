@@ -12,11 +12,12 @@ from PIL import Image
 from typing import Dict, Sequence
 from pycocotools.coco import COCO
 from torch.utils.data import Dataset
+from torchvision.io import read_video
 from .utils import jload, jlload
 
 IGNORE_INDEX = -100
 VISION_TOKEN = '<img>'
-VISION_TOKENS = VISION_TOKEN*32 + '\n'
+VISION_TOKENS = VISION_TOKEN * 32 + '\n'
 
 
 DEFAULT_PROMPT_DICT = {
