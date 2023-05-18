@@ -110,6 +110,7 @@ class ShareGPTDataset(Dataset):
         
         self.input_ids = []
         self.labels = []
+        model_max_length = tokenizer.model_max_length
         
         for i in range(len(list_data_dict)):
             conversations = list_data_dict[i]['conversations']
@@ -124,21 +125,18 @@ class ShareGPTDataset(Dataset):
                         sources.append(PROMPT_NO_INPUT.format(user=example['value']))
                         next_speak = 'gpt'
                     else:
-                        sources = []
-                        targets = []
+                        sources = targets = []
                         break
                 elif example['from'] == 'gpt':
                     if next_speak == 'gpt':
                         targets.append(f"{example['value']}{tokenizer.eos_token}")
                         next_speak = 'human'
                     else:
-                        sources = []
-                        targets = []
+                        sources = targets = []
                         break
                 else:
                     print(f"Invalid example type {example['from']}")
-                    sources = []
-                    targets = []
+                    sources = targets = []
                     break
 
             if len(sources) == 0 or len(targets) == 0 or len(sources) != len(targets):
@@ -147,11 +145,11 @@ class ShareGPTDataset(Dataset):
                 data_dict = preprocess(sources, targets, tokenizer)
                 input_ids_cat = torch.cat(data_dict["input_ids"], dim=0)
                 labels_cat = torch.cat(data_dict["labels"], dim=0)
-                if torch.unique(labels_cat).shape[0] == 1 or input_ids_cat.shape[0] > tokenizer.model_max_length:
-                    pass
-                else:
-                    self.input_ids.append(input_ids_cat)
-                    self.labels.append(labels_cat)
+                if input_ids_cat.shape[0] > model_max_length:
+                    input_ids_cat = input_ids_cat[:model_max_length]
+                    labels_cat = labels_cat[:model_max_length]
+                self.input_ids.append(input_ids_cat)
+                self.labels.append(labels_cat)
         
     def __len__(self):
         return len(self.input_ids)
