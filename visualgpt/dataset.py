@@ -12,7 +12,6 @@ from PIL import Image
 from typing import Dict, Sequence
 from pycocotools.coco import COCO
 from torch.utils.data import Dataset
-from torchvision.io import read_video
 from .utils import jload, jlload
 
 IGNORE_INDEX = -100
@@ -360,6 +359,71 @@ class LLaVAInstruct150K(Dataset):
         return dict(input_ids=self.input_ids[idx], labels=self.labels[idx], vision_x=img) 
     
 
+class VideoFrame(Dataset):
+    def __init__(self, data_path: str, video_folder:str, tokenizer: transformers.PreTrainedTokenizer, vision_processor=None):
+        super().__init__()
+        self.video_folder = video_folder
+        self.vision_processor = vision_processor
+        
+        logging.warning("Loading data...")
+        list_data_dict = jload(data_path)
+        
+        logging.warning("Tokenizing inputs... This may take some time...")
+        
+        PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
+        
+        self.input_ids = []
+        self.labels = []
+        self.video_ids = []
+        model_max_length = tokenizer.model_max_length
+        
+        for i in range(len(list_data_dict)):
+            video_name = list_data_dict[i]['video'].split('/')[-1]
+            video_id = video_name.split('.')[0]
+            conversations = list_data_dict[i]['QA']
+            n_frames = len(os.listdir(f"{self.video_folder}/{video_id}"))
+            sources = []
+            targets = []
+            for j, qa in enumerate(conversations):
+                src = qa['q'].replace("video", "images")
+                if j == 0:
+                    src = f"{VISION_TOKENS*n_frames}{src} "
+                sources.append(PROMPT_NO_INPUT.format(user=src))
+                tgt = qa['a'].replace("video", "images")
+                targets.append(f"{tgt}{tokenizer.eos_token}")
+                
+            data_dict = preprocess(sources, targets, tokenizer)    
+            input_ids_cat = torch.cat(data_dict["input_ids"], dim=0)
+            labels_cat = torch.cat(data_dict["labels"], dim=0)
+            
+            if input_ids_cat.shape[0] > model_max_length:
+                input_ids_cat = input_ids_cat[:model_max_length]
+                labels_cat = labels_cat[:model_max_length]
+            
+            self.input_ids.append(input_ids_cat)
+            self.labels.append(labels_cat)
+            self.video_ids.append(video_id)
+    
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, idx):
+        video_id = self.video_ids[idx]
+        img_folder = os.path.join(self.video_folder, video_id)
+        n_frames = len(os.listdir(img_folder))
+        vision_x = []
+        for i in range(len(n_frames)):
+            img_name = f"{video_id}_{i}.jpg"
+            img_path = os.path.join(img_folder, img_name)
+            img = Image.open(img_path).convert('RGB')
+            img = self.vision_processor(img)
+            vision_x.append(img.unsqueeze(0))
+            
+        vision_x = torch.cat(vision_x, dim=0)
+        
+        return dict(input_ids=self.input_ids[idx], labels=self.labels[idx], vision_x=vision_x)
+
+    
 class COCOImageCaption(Dataset):
     def __init__(self, root, tokenizer, dataType='train', vision_processor=None):
         self.root = root
