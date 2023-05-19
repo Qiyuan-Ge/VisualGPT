@@ -412,7 +412,7 @@ class VideoFrame(Dataset):
         img_folder = os.path.join(self.video_folder, video_id)
         n_frames = len(os.listdir(img_folder))
         vision_x = []
-        for i in range(len(n_frames)):
+        for i in range(n_frames):
             img_name = f"{video_id}_{i}.jpg"
             img_path = os.path.join(img_folder, img_name)
             img = Image.open(img_path).convert('RGB')
