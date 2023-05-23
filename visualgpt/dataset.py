@@ -363,8 +363,6 @@ class ScienceQA(Dataset):
         super().__init__()
         self.data_path = data_path
         
-        logging.warning("Tokenizing inputs... This may take some time...")
-        
         PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
         
         sources = []
@@ -375,6 +373,7 @@ class ScienceQA(Dataset):
         for idx in df.index:
             question = df.loc[idx, 'question']
             choices = df.loc[idx, 'choices']
+            topic = df.loc[idx, 'topic']
             solution = df.loc[idx, 'solution']
             answer_id = df.loc[idx, 'answer']
             answer = choices[answer_id]
@@ -390,13 +389,15 @@ class ScienceQA(Dataset):
                 user = f"Question:{question}\nChoices:{choices}"
             user = PROMPT_NO_INPUT.format(user=user)
             if solution != "":
-                assistant = f"{solution} The answer is {answer}"
+                This question is about chemistry.
+                assistant = f"This question is about {topic}. {solution} The answer is {answer}"
             else:
-                assistant = f"The answer is {answer}"
+                assistant = f"This question is about {topic}. The answer is {answer}"
                 
             sources.append(user)
             targets.append(f"{assistant}{tokenizer.eos_token}")
             
+            logging.warning("Tokenizing inputs... This may take some time...")
             data_dict = preprocess(sources, targets, tokenizer)
             
             self.input_ids = data_dict["input_ids"]
