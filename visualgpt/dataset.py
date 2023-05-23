@@ -389,7 +389,6 @@ class ScienceQA(Dataset):
                 user = f"Question:{question}\nChoices:{choices}"
             user = PROMPT_NO_INPUT.format(user=user)
             if solution != "":
-                This question is about chemistry.
                 assistant = f"This question is about {topic}. {solution} The answer is {answer}"
             else:
                 assistant = f"This question is about {topic}. The answer is {answer}"
