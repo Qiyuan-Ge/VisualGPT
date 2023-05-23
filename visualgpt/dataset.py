@@ -21,8 +21,8 @@ EOT_TOKEN = "<EOT>"
 
 
 DEFAULT_PROMPT_DICT = {
-    "prompt_input": "USER:\n{user}{input}<EOT>ASSISTANT:\n",
-    "prompt_no_input": "USER:\n{user}<EOT>ASSISTANT:\n",
+    "prompt_input": "USER:{user}{input}<EOT>ASSISTANT:",
+    "prompt_no_input": "USER:{user}<EOT>ASSISTANT:",
 }
 
 
