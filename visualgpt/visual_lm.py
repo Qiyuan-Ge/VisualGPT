@@ -63,15 +63,10 @@ class VisualLM(BaseModel):
             input_ids (torch.Tensor): (B, L)
             vision_x (torch.Tensor): (B, N, C, H, W)
         """        
-            
-        if vision_x is None:
-            with self.maybe_autocast():
-                outputs = self.lm(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            return outputs
-        else:
+        inputs_embeds = self.ids_to_tokens(input_ids)
+        
+        if vision_x is not None:
             assert self.vision_token_id is not None, "Please set vision_token_id first"
-            
-            inputs_embeds = self.ids_to_tokens(input_ids) # (B, L, D)
             
             B, N, C, H, W = vision_x.shape
             inputs_embeds = torch.cat([inputs_embeds, torch.zeros(B, 1, inputs_embeds.shape[-1], device=self.device)], dim=1)
@@ -90,7 +85,7 @@ class VisualLM(BaseModel):
             inputs_embeds = inputs_embeds.index_put((pos_y, pos_x), vision_embeds)
             inputs_embeds = inputs_embeds[:, :-1]
         
-            with self.maybe_autocast():
-                outputs = self.lm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
+        with self.maybe_autocast():
+            outputs = self.lm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
 
-            return outputs
+        return outputs
