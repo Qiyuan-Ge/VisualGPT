@@ -357,7 +357,59 @@ class LLaVAInstruct150K(Dataset):
         img = img.unsqueeze(0)
         
         return dict(input_ids=self.input_ids[idx], labels=self.labels[idx], vision_x=img) 
-    
+
+
+class ScienceQA(Dataset):
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, vision_processor=None):
+        super().__init__()
+        self.data_path = data_path
+        
+        logging.warning("Tokenizing inputs... This may take some time...")
+        
+        PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
+        
+        sources = []
+        targets = []
+        self.images = []
+        
+        df = pd.read_parquet(data_path)
+        for idx in df.index:
+            question = df.loc[idx, 'question']
+            choices = df.loc[idx, 'choices']
+            solution = df.loc[idx, 'solution']
+            answer_id = df.loc[idx, 'answer']
+            answer = choices[answer_id]
+            
+            img_info = df.loc[idx, 'image']
+            if img_info is not None:
+                pil_img = Image.open(io.BytesIO(img_info['bytes']))
+                img = vision_processor(img)
+                img = img.unsqueeze(0)
+                user = f"{VISION_TOKENS}Question:{question}\nChoices:{choices}"
+            else:
+                img = torch.zeros(1, 3, 224, 224)
+                user = f"Question:{question}\nChoices:{choices}"
+            user = PROMPT_NO_INPUT.format(user=user)
+            if solution != "":
+                assistant = f"{solution} The answer is {answer}"
+            else:
+                assistant = f"The answer is {answer}"
+                
+            sources.append(user)
+            targets.append(f"{assistant}{tokenizer.eos_token}")
+            
+            data_dict = preprocess(sources, targets, tokenizer)
+            
+            self.input_ids = data_dict["input_ids"]
+            self.labels = data_dict["labels"]
+            self.images.append(img)
+            
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        return dict(input_ids=self.input_ids[i], labels=self.labels[i], vision_x=self.images[i])
+
 
 class VideoFrame(Dataset):
     def __init__(self, data_path: str, video_folder:str, tokenizer: transformers.PreTrainedTokenizer, vision_processor=None):
