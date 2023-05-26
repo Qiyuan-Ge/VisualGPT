@@ -34,15 +34,16 @@ class VisualLM(BaseModel):
         self.norm = nn.LayerNorm(dim_v)
         self.proj = nn.Linear(dim_v, dim_l)
         self.vision_token_id = None
-        self.freeze_vision_and_lm()
+        self.freeze_vision()
         
     def set_vision_token_id(self, tokenizer, vision_token='<img>'):
         self.vision_token_id = tokenizer.convert_tokens_to_ids(vision_token)
         
-    def freeze_vision_and_lm(self):
+    def freeze_vision(self):
         for param in self.vision.parameters():
             param.requires_grad = False
-            
+        
+    def freeze_lm(self):
         for param in self.lm.parameters():
             param.requires_grad = False
     
