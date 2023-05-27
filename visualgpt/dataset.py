@@ -3,10 +3,8 @@ import copy
 import json
 import torch
 import logging
-import zipfile
 import numpy as np
 import pandas as pd
-#import braceexpand
 import transformers
 from PIL import Image
 from typing import Dict, Sequence
