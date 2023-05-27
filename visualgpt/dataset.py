@@ -175,8 +175,7 @@ class AlpacaDataset(Dataset):
             for example in list_data_dict
         ]
         targets = [f"{example['output']}{EOT_TOKEN}" for example in list_data_dict]
-        self.sources = sources
-        self.targets = targets
+
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
 
