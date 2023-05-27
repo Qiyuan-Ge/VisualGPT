@@ -281,7 +281,46 @@ class CompetitionMathDataset(Dataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         return dict(input_ids=self.input_ids[i], labels=self.labels[i])
 
+    
+class LaionAlpaca(Dataset):
+    def __init__(self, data_path: str, image_folder: str, tokenizer: transformers.PreTrainedTokenizer, vision_processor=None):
+        super().__init__()
+        self.image_folder = image_folder
+        self.vision_processor = vision_processor  
+        
+        logging.warning("Loading data...")
+        list_data_dict = jload(data_path)
+        
+        PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
+        
+        sources = []
+        targets = []
+        self.image_names = []
+        
+        for example in list_data_dict:
+            user = example['instruction'].replace("<image>", VISION_TOKENS)
+            sources.append(PROMPT_NO_INPUT.format(user=user))
+            targets.append(f"{example['output']}{EOT_TOKEN}")
+            self.image_names.append(f"{example['folder']}/{example['key']}.jpg")
+            
+        logging.warning("Tokenizing inputs... This may take some time...")
+        data_dict = preprocess(sources, targets, tokenizer)
 
+        self.input_ids = data_dict["input_ids"]
+        self.labels = data_dict["labels"]
+        
+    def __len__(self):
+        return len(self.input_ids)
+    
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        image_path = f"{self.image_folder}/{self.image_names[i]}"
+        img = Image.open(image_path).convert('RGB')
+        img = self.vision_processor(img)
+        img = img.unsqueeze(0)
+        
+        return dict(input_ids=self.input_ids[i], labels=self.labels[i], vision_x=img)
+
+    
 class LLaVAInstruct150K(Dataset):
     def __init__(self, data_path: str, image_folder:str, tokenizer: transformers.PreTrainedTokenizer, dataType='train', vision_processor=None):
         super().__init__()
