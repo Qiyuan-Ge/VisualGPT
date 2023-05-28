@@ -70,7 +70,7 @@ class VisualLM(BaseModel):
             assert self.vision_token_id is not None, "Please set vision_token_id first"
             
             B, N, C, H, W = vision_x.shape
-            inputs_embeds = torch.cat([inputs_embeds, torch.zeros(B, 1, inputs_embeds.shape[-1], device=self.device)], dim=1)
+            inputs_embeds = torch.cat([inputs_embeds, torch.zeros(B, 1, inputs_embeds.shape[-1], device=inputs_embeds.device)], dim=1)
             
             vision_x = rearrange(vision_x, 'b n c h w -> (b n) c h w')
             vision_embeds = self.vision(vision_x)
