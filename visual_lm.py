@@ -36,9 +36,6 @@ class VisualLM(BaseModel):
         self.vision_token_id = None
         self.freeze_vision()
         
-    def set_vision_token_id(self, tokenizer, vision_token='<img>'):
-        self.vision_token_id = tokenizer.convert_tokens_to_ids(vision_token)
-        
     def freeze_vision(self):
         for param in self.vision.parameters():
             param.requires_grad = False
@@ -46,9 +43,12 @@ class VisualLM(BaseModel):
     def freeze_lm(self):
         for param in self.lm.parameters():
             param.requires_grad = False
+
+    def set_vision_token_id(self, tokenizer, vision_token='<img>'):
+        self.vision_token_id = tokenizer.convert_tokens_to_ids(vision_token)
     
-    def ids_to_tokens(self, ids):
-        return self.lm.get_input_embeddings()(ids)
+    def get_input_embeddings(self):
+        return self.lm.get_input_embeddings()
     
     def get_vision_position(self, input_ids):
         mask_value = input_ids.shape[1]
@@ -64,7 +64,7 @@ class VisualLM(BaseModel):
             input_ids (torch.Tensor): (B, L)
             vision_x (torch.Tensor): (B, N, C, H, W)
         """        
-        inputs_embeds = self.ids_to_tokens(input_ids)
+        inputs_embeds = self.get_input_embeddings()(input_ids)
         
         if vision_x is not None:
             assert self.vision_token_id is not None, "Please set vision_token_id first"
@@ -86,7 +86,34 @@ class VisualLM(BaseModel):
             inputs_embeds = inputs_embeds.index_put((pos_y, pos_x), vision_embeds)
             inputs_embeds = inputs_embeds[:, :-1]
         
-        with self.maybe_autocast():
-            outputs = self.lm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
+        outputs = self.lm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
 
+        return outputs
+    
+    @torch.no_grad()
+    def generate(self, input_ids, vision_x=None, attention_mask=None, **generate_kwargs,):
+        inputs_embeds = self.get_input_embeddings()(input_ids)
+        
+        if vision_x is not None:
+            assert self.vision_token_id is not None, "Please set vision_token_id first"
+            
+            B, N, C, H, W = vision_x.shape
+            inputs_embeds = torch.cat([inputs_embeds, torch.zeros(B, 1, inputs_embeds.shape[-1], device=self.device)], dim=1)
+            
+            vision_x = rearrange(vision_x, 'b n c h w -> (b n) c h w')
+            vision_embeds = self.vision(vision_x)
+            vision_embeds = rearrange(vision_embeds, '(b n) l d -> b (n l) d', b=B)
+            vision_embeds = self.norm(vision_embeds)
+            vision_embeds = self.proj(vision_embeds)
+            # vision position
+            vision_position = self.get_vision_position(input_ids)
+            vision_position = vision_position[:, :vision_embeds.shape[-2]]
+            pos_x = vision_position
+            pos_y = repeat(torch.arange(B), 'b -> b n', n=vision_position.shape[-1])
+            # insert vision embeds into inputs_embeds
+            inputs_embeds = inputs_embeds.index_put((pos_y, pos_x), vision_embeds)
+            inputs_embeds = inputs_embeds[:, :-1]
+        
+        outputs = self.lm.generate(inputs_embeds=inputs_embeds, attention_mask=attention_mask, **generate_kwargs)
+        
         return outputs
