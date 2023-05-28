@@ -145,7 +145,7 @@ def train():
     model.freeze_vision()
     model.freeze_lm()
     
-    train_dataset = LaionAlpaca(data_path=data_args.laion_alpaca_data_path, image_folder=data_args.laion_alpaca_image_folder, tokenizer=tokenizer, vision_processor=vision_processor)
+    train_dataset = LaionAlpaca(data_path=data_args.laion_alpaca_data_path, image_folder=data_args.laion_alpaca_image_folder, tokenizer=tokenizer, vision_processor=vision_processor())
     
     data_module = make_supervised_data_module(train_dataset, tokenizer=tokenizer)
     trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
