@@ -1,41 +1,75 @@
 import torch
+import transformers
 import torch.nn as nn
 from einops import rearrange, repeat
-from lavis.models import load_model_and_preprocess
-from transformers import AutoModelForCausalLM
+from huggingface_hub import hf_hub_download
+
 from .base_model import BaseModel
+# from lavis.models import load_model_and_preprocess
 
 
-class VisionEncoder(nn.Module):
-    def __init__(self, device='cpu'):
+# class VisionEncoder(nn.Module):
+#     def __init__(self, device='cpu'):
+#         super().__init__()
+#         self.QFormer, _, _ = load_model_and_preprocess(name="blip2_feature_extractor", model_type="pretrain", is_eval=True, device=device)
+        
+#     def forward(self, vision_input):
+#         """_summary_
+
+#         Args:
+#             vision_input (torch.Tensor): (B, N, C, H, W)
+#         """        
+        
+#         sample = {"image": vision_input, "text_input": []}
+#         output = self.QFormer.extract_features(sample, mode="image")
+#         image_embeds = output.image_embeds
+#         return image_embeds
+
+   
+class Vision(nn.Module):
+    def __init__(self, config):
         super().__init__()
-        self.QFormer, _, _ = load_model_and_preprocess(name="blip2_feature_extractor", model_type="pretrain", is_eval=True, device=device)
+        self.vision_model = transformers.Blip2VisionModel(config.vision_config)
         
-    def forward(self, vision_input):
-        """_summary_
+        self.query_tokens = nn.Parameter(torch.zeros(1, config.num_query_tokens, config.qformer_config.hidden_size))
+        self.qformer = transformers.Blip2QFormerModel(config.qformer_config)
+        
+    def forward(self, vision_x):
+        # step 1: forward the images through the vision encoder,
+        # to get image embeddings of shape (batch_size, seq_len, hidden_size)
+        vision_outputs = self.vision_model(pixel_values=vision_x)
+        image_embeds = vision_outputs[0]
+        # step 2: forward the query tokens through the QFormer, using the image embeddings for cross-attention
+        image_attention_mask = torch.ones(image_embeds.size()[:-1], dtype=torch.long, device=image_embeds.device)
+        
+        query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
+        query_outputs = self.qformer(
+            query_embeds=query_tokens,
+            encoder_hidden_states=image_embeds,
+            encoder_attention_mask=image_attention_mask,
+        )
+        query_output = query_outputs[0]
+        
+        return query_output
 
-        Args:
-            vision_input (torch.Tensor): (B, N, C, H, W)
-        """        
-        
-        sample = {"image": vision_input, "text_input": []}
-        output = self.QFormer.extract_features(sample, mode="image")
-        image_embeds = output.image_embeds
-        return image_embeds
-        
-
+    
 class VisualLM(BaseModel):
-    def __init__(self, model_name, cache_dir=None):
+    def __init__(self, config):
         super().__init__()
-        self.vision = VisionEncoder()
-        self.lm = AutoModelForCausalLM.from_pretrained(model_name, cache_dir=cache_dir)
-        dim_v = self.vision.QFormer.vision_proj.in_features
+        self.config = config
+        self.vision = Vision(config)
+        self.lm = transformers.AutoModelForCausalLM.from_pretrained(config.language_model_name, cache_dir=config.cache_dir)
+        dim_v = 768
         dim_l = self.lm.get_input_embeddings().embedding_dim
         self.norm = nn.LayerNorm(dim_v)
         self.proj = nn.Linear(dim_v, dim_l)
         self.vision_token_id = None
-        self.freeze_vision()
         
+    def load_pretrained_vision(self, checkpoint_path=None):
+        if checkpoint_path is None:
+            checkpoint_path = hf_hub_download("RootYuan/blip2_vision_model", "pytorch_model.bin", cache_dir=self.config.cache_dir)
+        self.vision.load_state_dict(torch.load(checkpoint_path))
+    
     def freeze_vision(self):
         for param in self.vision.parameters():
             param.requires_grad = False
