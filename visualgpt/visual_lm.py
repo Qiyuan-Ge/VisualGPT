@@ -7,7 +7,6 @@ from einops import rearrange, repeat
 from huggingface_hub import hf_hub_download
 from transformers import Blip2VisionConfig, Blip2QFormerConfig
 
-from .base_model import BaseModel
 # from lavis.models import load_model_and_preprocess
 # class VisionEncoder(nn.Module):
 #     def __init__(self, device='cpu'):
@@ -84,7 +83,7 @@ class Vision(nn.Module):
         return query_output
 
     
-class VisualLM(BaseModel):
+class VisualLM(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
