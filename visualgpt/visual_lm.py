@@ -1,68 +1,18 @@
-import json
 import torch
 import torch.nn as nn
 import transformers
-from copy import deepcopy
 from einops import rearrange, repeat
 from huggingface_hub import hf_hub_download
 from transformers import Blip2VisionConfig, Blip2QFormerConfig
 
-# from lavis.models import load_model_and_preprocess
-# class VisionEncoder(nn.Module):
-#     def __init__(self, device='cpu'):
-#         super().__init__()
-#         self.QFormer, _, _ = load_model_and_preprocess(name="blip2_feature_extractor", model_type="pretrain", is_eval=True, device=device)
-        
-#     def forward(self, vision_input):
-#         """_summary_
-
-#         Args:
-#             vision_input (torch.Tensor): (B, N, C, H, W)
-#         """        
-        
-#         sample = {"image": vision_input, "text_input": []}
-#         output = self.QFormer.extract_features(sample, mode="image")
-#         image_embeds = output.image_embeds
-#         return image_embeds
-
-   
-class Config:
-    def __init__(self):
-        self.num_query_tokens = 32
-        self.query_dim = 768
-        self.vision_config = Blip2VisionConfig()
-        self.qformer_config = Blip2QFormerConfig()
-        self.language_model_name = "RootYuan/RedLing-7B-v0.1"
-        self.cache_dir = None
-    
-    def __repr__(self):
-        return str(self.to_json_string())
-    
-    def to_dict(self):
-        return deepcopy(self.__dict__)
-    
-    def to_json(self, path):
-        with open(path, 'w') as f:
-            json.dump(self.to_dict(), f, indent=2)
-            
-    def to_json_string(self):
-        return json.dumps(self.to_dict(), indent=2)
-            
-    def from_dict(self, dct):
-        self.clear()
-        for key, value in dct.items():
-            self.__dict__[key] = value
-            
-        return self.to_dict()
-
 
 class Vision(nn.Module):
-    def __init__(self, config):
+    def __init__(self):
         super().__init__()
-        self.vision_model = transformers.Blip2VisionModel(config.vision_config)
-        
-        self.query_tokens = nn.Parameter(torch.zeros(1, config.num_query_tokens, config.qformer_config.hidden_size))
-        self.qformer = transformers.Blip2QFormerModel(config.qformer_config)
+        self.vision_model = transformers.Blip2VisionModel(Blip2VisionConfig())
+        self.num_query_tokens = 32
+        self.query_tokens = nn.Parameter(torch.zeros(1, self.num_query_tokens, Blip2QFormerConfig().hidden_size))
+        self.qformer = transformers.Blip2QFormerModel(Blip2QFormerConfig())
         
     def forward(self, vision_x):
         # step 1: forward the images through the vision encoder,
@@ -84,19 +34,19 @@ class Vision(nn.Module):
 
     
 class VisualLM(nn.Module):
-    def __init__(self, config):
+    def __init__(self, language_model_name="RootYuan/RedLing-7B-v0.1", cache_dir=None):
         super().__init__()
-        self.config = config
-        self.vision = Vision(config)
-        self.lm = transformers.AutoModelForCausalLM.from_pretrained(config.language_model_name, cache_dir=config.cache_dir)
+        self.vision = Vision()
+        self.lm = transformers.AutoModelForCausalLM.from_pretrained(language_model_name, cache_dir=cache_dir)
         dim_l = self.lm.get_input_embeddings().embedding_dim
-        self.norm = nn.LayerNorm(config.query_dim)
-        self.proj = nn.Linear(config.query_dim, dim_l)
+        dim_q = 768
+        self.norm = nn.LayerNorm(dim_q)
+        self.proj = nn.Linear(dim_q, dim_l)
         self.vision_token_id = None
         
-    def load_pretrained_vision(self, checkpoint_path=None):
+    def load_pretrained_vision(self, checkpoint_path=None, cache_dir=None):
         if checkpoint_path is None:
-            checkpoint_path = hf_hub_download("RootYuan/blip2_vision_model", "pytorch_model.bin", cache_dir=self.config.cache_dir)
+            checkpoint_path = hf_hub_download("RootYuan/blip2_vision_model", "pytorch_model.bin", cache_dir=cache_dir)
         self.vision.load_state_dict(torch.load(checkpoint_path))
     
     def freeze_vision(self):
@@ -115,7 +65,7 @@ class VisualLM(nn.Module):
     
     def get_vision_position(self, input_ids):
         mask_value = input_ids.shape[1]
-        vision_position = torch.arange(input_ids.shape[-1]).to(self.device)
+        vision_position = torch.arange(input_ids.shape[-1]).to(input_ids.device)
         vision_position = repeat(vision_position, 'n -> b n', b=input_ids.shape[0])
         vision_position = vision_position.masked_fill(input_ids!=self.vision_token_id, mask_value).sort(dim=-1).values
         return vision_position
