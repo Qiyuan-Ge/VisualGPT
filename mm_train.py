@@ -12,8 +12,6 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-import copy
-import logging
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Sequence
 
@@ -21,9 +19,9 @@ import torch
 import transformers
 from transformers import Trainer, AddedToken
 
-import visualgpt
+from visualgpt import VisualLM
 from visualgpt.dataset import LaionAlpaca
-from visualgpt.helper import blip2_vision_processor as vision_processor
+from visualgpt.helper import ImageProcessor
 
 IGNORE_INDEX = -100
 VISION_TOKEN = "<img>"
@@ -114,7 +112,8 @@ def train():
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     
-    model = visualgpt.VisualLM(model_name=model_args.model_name_or_path, cache_dir=training_args.cache_dir)
+    model = VisualLM(language_model_name=model_args.model_name_or_path, cache_dir=training_args.cache_dir)
+    model.load_pretrained_vision()
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
@@ -145,7 +144,7 @@ def train():
     model.freeze_vision()
     model.freeze_lm()
     
-    train_dataset = LaionAlpaca(data_path=data_args.laion_alpaca_data_path, image_folder=data_args.laion_alpaca_image_folder, tokenizer=tokenizer, vision_processor=vision_processor())
+    train_dataset = LaionAlpaca(data_path=data_args.laion_alpaca_data_path, image_folder=data_args.laion_alpaca_image_folder, tokenizer=tokenizer, vision_processor=ImageProcessor())
     
     data_module = make_supervised_data_module(train_dataset, tokenizer=tokenizer)
     trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
