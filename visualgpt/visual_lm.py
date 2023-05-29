@@ -1,13 +1,14 @@
+import json
 import torch
-import transformers
 import torch.nn as nn
+import transformers
+from copy import deepcopy
 from einops import rearrange, repeat
 from huggingface_hub import hf_hub_download
+from transformers import Blip2VisionConfig, Blip2QFormerConfig
 
 from .base_model import BaseModel
 # from lavis.models import load_model_and_preprocess
-
-
 # class VisionEncoder(nn.Module):
 #     def __init__(self, device='cpu'):
 #         super().__init__()
@@ -26,6 +27,36 @@ from .base_model import BaseModel
 #         return image_embeds
 
    
+class Config:
+    def __init__(self):
+        self.num_query_tokens = 32
+        self.query_dim = 768
+        self.vision_config = Blip2VisionConfig()
+        self.qformer_config = Blip2QFormerConfig()
+        self.language_model_name = "RootYuan/RedLing-7B-v0.1"
+        self.cache_dir = None
+    
+    def __repr__(self):
+        return str(self.to_json_string())
+    
+    def to_dict(self):
+        return deepcopy(self.__dict__)
+    
+    def to_json(self, path):
+        with open(path, 'w') as f:
+            json.dump(self.to_dict(), f, indent=2)
+            
+    def to_json_string(self):
+        return json.dumps(self.to_dict(), indent=2)
+            
+    def from_dict(self, dct):
+        self.clear()
+        for key, value in dct.items():
+            self.__dict__[key] = value
+            
+        return self.to_dict()
+
+
 class Vision(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -59,10 +90,9 @@ class VisualLM(BaseModel):
         self.config = config
         self.vision = Vision(config)
         self.lm = transformers.AutoModelForCausalLM.from_pretrained(config.language_model_name, cache_dir=config.cache_dir)
-        dim_v = 768
         dim_l = self.lm.get_input_embeddings().embedding_dim
-        self.norm = nn.LayerNorm(dim_v)
-        self.proj = nn.Linear(dim_v, dim_l)
+        self.norm = nn.LayerNorm(config.query_dim)
+        self.proj = nn.Linear(config.query_dim, dim_l)
         self.vision_token_id = None
         
     def load_pretrained_vision(self, checkpoint_path=None):
