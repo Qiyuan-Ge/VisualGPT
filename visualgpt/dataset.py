@@ -15,12 +15,12 @@ from .utils import jload, jlload
 IGNORE_INDEX = -100
 VISION_TOKEN = '<img>'
 VISION_TOKENS = '\n' + VISION_TOKEN * 32 + '\n'
-EOT_TOKEN = "<EOT>"
+sep = "</s>"
 
 
 DEFAULT_PROMPT_DICT = {
-    "prompt_input": "USER:{user} {input}" + EOT_TOKEN + "ASSISTANT:",
-    "prompt_no_input": "USER:{user}" + EOT_TOKEN + "ASSISTANT:",
+    "prompt_input": "USER:{user}\n{input}\nASSISTANT:",
+    "prompt_no_input": "USER:{user}\nASSISTANT:",
 }
 
 
@@ -127,7 +127,7 @@ class ShareGPTDataset(Dataset):
                         break
                 elif example['from'] == 'gpt':
                     if next_speak == 'gpt':
-                        targets.append(f"{example['value']}{EOT_TOKEN}")
+                        targets.append(f"{example['value']}{sep}")
                         next_speak = 'human'
                     else:
                         sources = targets = []
@@ -172,7 +172,7 @@ class AlpacaDataset(Dataset):
             PROMPT_INPUT.format(user=example['instruction'], input=example['input']) if example.get("input", "") != "" else PROMPT_NO_INPUT.format(user=example['instruction'])
             for example in list_data_dict
         ]
-        targets = [f"{example['output']}{EOT_TOKEN}" for example in list_data_dict]
+        targets = [f"{example['output']}{sep}" for example in list_data_dict]
 
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
@@ -203,7 +203,7 @@ class DollyDataset(Dataset):
             PROMPT_INPUT.format(user=example['instruction'], input=example['context']) if example.get("context", "") != "" else PROMPT_NO_INPUT.format(user=example['instruction'])
             for example in list_data_dict
         ]
-        targets = [f"{example['response']}{EOT_TOKEN}" for example in list_data_dict]
+        targets = [f"{example['response']}{sep}" for example in list_data_dict]
 
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
@@ -234,7 +234,7 @@ class GradeSchoolMathDataset(Dataset):
         sources = [
             PROMPT_NO_INPUT.format(user=example['INSTRUCTION']) for example in list_data_dict
         ]
-        targets = [f"{example['RESPONSE']}{EOT_TOKEN}" for example in list_data_dict]
+        targets = [f"{example['RESPONSE']}{sep}" for example in list_data_dict]
 
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
@@ -265,7 +265,7 @@ class CompetitionMathDataset(Dataset):
         sources = [
             PROMPT_NO_INPUT.format(user=example['instruction']) for example in list_data_dict
         ]
-        targets = [f"{example['output']}{EOT_TOKEN}" for example in list_data_dict]
+        targets = [f"{example['output']}{sep}" for example in list_data_dict]
 
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
@@ -298,7 +298,7 @@ class LaionAlpaca(Dataset):
         for example in list_data_dict:
             user = example['instruction'].replace("<image>", VISION_TOKENS)
             sources.append(PROMPT_NO_INPUT.format(user=user))
-            targets.append(f"{example['output']}{EOT_TOKEN}")
+            targets.append(f"{example['output']}{sep}")
             self.image_names.append(f"{example['folder']}/{example['key']}.jpg")
             
         logging.warning("Tokenizing inputs... This may take some time...")
@@ -357,7 +357,7 @@ class LLaVAInstruct150K(Dataset):
                         break
                 elif example['from'] == 'gpt':
                     if next_speak == 'gpt':
-                        targets.append(f"{example['value']}{EOT_TOKEN}")
+                        targets.append(f"{example['value']}{sep}")
                         next_speak = 'human'
                     else:
                         sources = []
@@ -431,7 +431,7 @@ class ScienceQA(Dataset):
                 assistant = f"This question is about {topic}. The answer is {answer}"
                 
             sources.append(user)
-            targets.append(f"{assistant}{EOT_TOKEN}")
+            targets.append(f"{assistant}{sep}")
             
             logging.warning("Tokenizing inputs... This may take some time...")
             data_dict = preprocess(sources, targets, tokenizer)
@@ -478,7 +478,7 @@ class VideoFrame(Dataset):
                     src = f"{VISION_TOKENS*n_frames}{src} "
                 sources.append(PROMPT_NO_INPUT.format(user=src))
                 tgt = qa['a'].replace("video", "images")
-                targets.append(f"{tgt}{EOT_TOKEN}")
+                targets.append(f"{tgt}{sep}")
                 
             data_dict = preprocess(sources, targets, tokenizer)    
             input_ids_cat = torch.cat(data_dict["input_ids"], dim=0)
@@ -536,7 +536,7 @@ class COCOImageCaption(Dataset):
             example['user'] = PROMPT_NO_INPUT.format(user=example['user'])
             
             sources.append(example['user'])
-            targets.append(f"{example['assistant']}{EOT_TOKEN}")
+            targets.append(f"{example['assistant']}{sep}")
         
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
@@ -585,7 +585,7 @@ class VQA2(Dataset):
             example['user'] = PROMPT_NO_INPUT.format(user=example['user'])
             
             sources.append(example['user'])
-            targets.append(f"{example['assistant']}{EOT_TOKEN}")
+            targets.append(f"{example['assistant']}{sep}")
             self.img_ids.append(example['img_id'])
             
         logging.warning("Tokenizing inputs... This may take some time...")
