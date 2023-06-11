@@ -38,6 +38,7 @@ class VisualLM(nn.Module):
         super().__init__()
         self.vision = Vision()
         self.lm = transformers.AutoModelForCausalLM.from_pretrained(language_model_name, cache_dir=cache_dir)
+        self.config = self.lm.config
         dim_l = self.lm.get_input_embeddings().embedding_dim
         dim_q = 768
         self.norm = nn.LayerNorm(dim_q)
@@ -83,7 +84,7 @@ class VisualLM(nn.Module):
             assert self.vision_token_id is not None, "Please set vision_token_id first"
             
             B, N, C, H, W = vision_x.shape
-            inputs_embeds = torch.cat([inputs_embeds, torch.zeros(B, 1, inputs_embeds.shape[-1], device=inputs_embeds.device)], dim=1)
+            inputs_embeds = torch.cat([inputs_embeds, torch.zeros(B, 1, inputs_embeds.shape[-1]).type_as(inputs_embeds)], dim=1)
             
             vision_x = rearrange(vision_x, 'b n c h w -> (b n) c h w')
             vision_embeds = self.vision(vision_x)
@@ -94,7 +95,7 @@ class VisualLM(nn.Module):
             vision_position = self.get_vision_position(input_ids)
             vision_position = vision_position[:, :vision_embeds.shape[-2]]
             pos_x = vision_position
-            pos_y = repeat(torch.arange(B), 'b -> b n', n=vision_position.shape[-1])
+            pos_y = repeat(torch.arange(B), 'b -> b n', n=vision_position.shape[-1]).type_as(pos_x)
             # insert vision embeds into inputs_embeds
             inputs_embeds = inputs_embeds.index_put((pos_y, pos_x), vision_embeds)
             inputs_embeds = inputs_embeds[:, :-1]
@@ -104,14 +105,15 @@ class VisualLM(nn.Module):
         return outputs
     
     @torch.no_grad()
-    def generate(self, input_ids, vision_x=None, attention_mask=None, **generate_kwargs,):
+    def generate(self, input_ids, vision_x=None, attention_mask=None, **generate_kwargs):
+
         inputs_embeds = self.get_input_embeddings()(input_ids)
         
         if vision_x is not None:
             assert self.vision_token_id is not None, "Please set vision_token_id first"
             
             B, N, C, H, W = vision_x.shape
-            inputs_embeds = torch.cat([inputs_embeds, torch.zeros(B, 1, inputs_embeds.shape[-1], device=self.device)], dim=1)
+            inputs_embeds = torch.cat([inputs_embeds, torch.zeros(B, 1, inputs_embeds.shape[-1]).type_as(inputs_embeds)], dim=1)
             
             vision_x = rearrange(vision_x, 'b n c h w -> (b n) c h w')
             vision_embeds = self.vision(vision_x)
@@ -122,7 +124,7 @@ class VisualLM(nn.Module):
             vision_position = self.get_vision_position(input_ids)
             vision_position = vision_position[:, :vision_embeds.shape[-2]]
             pos_x = vision_position
-            pos_y = repeat(torch.arange(B), 'b -> b n', n=vision_position.shape[-1])
+            pos_y = repeat(torch.arange(B), 'b -> b n', n=vision_position.shape[-1]).type_as(pos_x)
             # insert vision embeds into inputs_embeds
             inputs_embeds = inputs_embeds.index_put((pos_y, pos_x), vision_embeds)
             inputs_embeds = inputs_embeds[:, :-1]
