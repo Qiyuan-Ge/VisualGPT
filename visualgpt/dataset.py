@@ -288,6 +288,7 @@ class LaionAlpaca(Dataset):
         
         logging.warning("Loading data...")
         list_data_dict = jload(data_path)
+        list_data_dict = list_data_dict[:1000]
         
         PROMPT_NO_INPUT = PROMPT_TEMPLATE["prompt_no_input"]
         
