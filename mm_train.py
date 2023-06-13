@@ -29,7 +29,6 @@ DEFAULT_PAD_TOKEN = "[PAD]"
 DEFAULT_EOS_TOKEN = "</s>"
 DEFAULT_BOS_TOKEN = "<s>"
 DEFAULT_UNK_TOKEN = "<unk>"
-DEFAULT_EOT_TOKEN = "<EOT>"
 
 
 @dataclass
@@ -132,7 +131,7 @@ def train():
     if tokenizer.unk_token is None:
         special_tokens_dict["unk_token"] = DEFAULT_UNK_TOKEN
     
-    other_tokens = [VISION_TOKEN, DEFAULT_EOT_TOKEN]    
+    other_tokens = [VISION_TOKEN]    
     
     smart_tokenizer_and_embedding_resize(
         special_tokens_dict=special_tokens_dict,
@@ -143,6 +142,7 @@ def train():
     model.set_vision_token_id(tokenizer, vision_token=VISION_TOKEN)
     model.freeze_vision()
     model.freeze_lm()
+    model.cuda()
     
     train_dataset = LaionAlpaca(data_path=data_args.laion_alpaca_data_path, image_folder=data_args.laion_alpaca_image_folder, tokenizer=tokenizer, vision_processor=ImageProcessor())
     
